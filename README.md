@@ -6,13 +6,13 @@ ReLUplex Implementation in Python
 📂 Project Structure
 .
 
-├── Reluplex.py
+        ├── Reluplex.py
 
-├── Simplex.py
+        ├── Simplex.py
 
-├── Tseitin_Transformation.py
+        ├── Tseitin_Transformation.py
 
-└── README.md
+        └── README.md
 
 📄 File Descriptions
 
