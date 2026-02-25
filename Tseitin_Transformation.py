@@ -33,6 +33,12 @@ class InequProp(Prop):
     x: str
     b: float
 
+# c1*x1 + c2*x2 + ... + cn*xn >= b (다중변수 선형 부등식)
+@dataclass(frozen=True)
+class LinearInequProp(Prop):
+    coeffs: Dict[str, float]  # 변수명 -> 계수
+    bound: float              # b (우변)
+
 @dataclass(frozen=True)
 class AndProp(Prop):
     p: Prop
@@ -178,6 +184,9 @@ def tseitin_to_cnf(root: Prop) -> Tuple[CNF, Dict[Prop, int]]:
             # 케이스 1) ¬p (p가 원자) => 새 변수 만들지 말고 -id(p) 리턴
             if isinstance(inner, VarProp):
                 return -v(inner)   # v(inner)는 atom_map을 통해 기존 id 재사용
+            # 또한 부등식(InequProp) 같은 원자에 대한 부정도 처리
+            if isinstance(inner, InequProp):
+                return -v(inner)
 
         # 비원자 노드에 대해서만 새로운 변수를 할당
         rep = fresh.new()
@@ -441,7 +450,7 @@ def main() -> None:
     p = VarProp("p")
     q = VarProp("q")
 
-    phi = IffProp( VarProp( "p" ), VarProp( "q" ) )
+    phi = NotProp( AndProp( VarProp( "p" ), VarProp( "q" ) ) )
 
     # --- Tseitin 변환 실행 ---
     cnf, node_to_var = tseitin_to_cnf(phi)

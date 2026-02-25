@@ -58,18 +58,16 @@ def reluplex(
 
         x_val = t.assign.get(x, 0.0)
         y_val = t.assign.get(y, 0.0)
-        print(x_val, y_val)
-
         target_var = y if direction == 0 else x
         target_val = relu(x_val) if direction == 0 else y_val
 
-        # bounds 범위 확인
         lo = t.bounds[target_var].lower
         hi = t.bounds[target_var].upper
         if target_val < lo - 1e-9 or target_val > hi + 1e-9:
             return None, False
 
-        # target_var가 비기저이면 피벗
+        print(t.assign.get(x), t.assign.get(y, 0.0), direction)
+        # 피벗
         if target_var not in t.basic_vars:
             pivot_row = None
             for row in t.rows:
@@ -80,13 +78,19 @@ def reluplex(
                 return None, False
             _pivot(t, target_var, pivot_row.basic_var)
 
-        # 값 설정 후 simplex
+        # 값 직접 수정 후, 수정된 tableau로 Simplex를 재실행하여
+        # 선형 제약(등식·범위)이 유지되는 일관된 해를 얻는다.
         t.assign[target_var] = target_val
         for row in t.rows:
             if row.basic_var != target_var:
                 t.assign[row.basic_var] = _compute_basic(t, row)
 
-        return simplex(t, max_iter=simplex_max_iter)
+        
+        # 수정된 tableau로 Simplex 실행
+        sol_simplex, sat_simplex = simplex(t, max_iter=simplex_max_iter)
+        if not sat_simplex:
+            return None, False
+        return sol_simplex, True
     
     def _select_violation(
         violations: List[Tuple[str, str]]

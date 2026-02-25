@@ -58,6 +58,7 @@ class SimplexTableau:
 #  Tableau 구성
 # ─────────────────────────────────────────────
 
+# 심플랙스폼을 정의 ( 등식 , 경계 )
 def build_tableau(
     # row 방정식들의 list
     row_defs: List[Tuple[str, Dict[str, float]]],
@@ -142,6 +143,7 @@ def _pivot(tableau: SimplexTableau, xi: str, xj: str) -> None:
     pivot_row = next(r for r in tableau.rows if r.basic_var == xj)
     a = pivot_row.coeffs[xi]  # 피벗 계수 (0이 아님을 보장)
 
+    # xj의 row:  xj = ... + a*xi + ...
     # ── Step 1: pivot_row를 xi = ... 형태로 변환 ──
     new_coeffs: Dict[str, float] = {}
     for var, c in pivot_row.coeffs.items():
@@ -162,6 +164,7 @@ def _pivot(tableau: SimplexTableau, xi: str, xj: str) -> None:
         if xi not in row.coeffs:
             continue
 
+        # xi의 계수
         factor = row.coeffs.pop(xi)
         for var, c in new_coeffs.items():
             # get(var, 0.0) : var이 row.coeffs에 없으면 0.0 반환
@@ -293,7 +296,7 @@ def main() -> None:
     print("  사진 예시")
     print("  s1 = x + y,   s1 >= 0")
     print("  s2 = -2x + y, s2 >= 2")
-    print("  s3 = -10x + y, s3 >= -5")
+    print("  s3 = -10x + y, s3 >= -5"   )
     print("=" * 55)
 
     row_defs = [
@@ -305,8 +308,8 @@ def main() -> None:
         "s1": (0.0,        float('inf')),
         "s2": (2.0,        float('inf')),
         "s3": (-5.0,       float('inf')),
-        "x":  (0.0,        float('inf')),
-        "y":  (0.0,        float('inf')),
+        "x":  (-float('inf'),        float('inf')),
+        "y":  (-float('inf'),        float('inf')),
     }
 
     tableau = build_tableau(row_defs, bounds)
