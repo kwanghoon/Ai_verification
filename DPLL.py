@@ -160,6 +160,44 @@ def to_nnf(p: Prop) -> Prop:
     return nnf(p)
 
 
+def is_literal_prop(p: Prop) -> bool:
+    """리터럴 여부: Var/Inequ 또는 그 부정(Not)"""
+    if isinstance(p, (VarProp, InequProp)):
+        return True
+    return isinstance(p, NotProp) and isinstance(p.p, (VarProp, InequProp))
+
+
+def is_clause_prop(p: Prop) -> bool:
+    """절(clause) 여부: 리터럴들의 OR"""
+    if is_literal_prop(p):
+        return True
+    if isinstance(p, OrProp):
+        return is_clause_prop(p.p) and is_clause_prop(p.q)
+    return False
+
+
+def is_cnf(p: Prop) -> bool:
+    """
+    CNF 형태인지 구조적으로 판정.
+
+    허용 형태:
+      - True/False
+      - 단일 절(리터럴 또는 리터럴들의 OR)
+      - 절들의 AND
+    금지 형태 예:
+      - 절 내부 AND
+      - ImplProp 포함
+      - Not 이 원자(Var/Inequ) 바깥에 위치
+    """
+    if isinstance(p, (TrueProp, FalseProp)):
+        return True
+    if is_clause_prop(p):
+        return True
+    if isinstance(p, AndProp):
+        return is_cnf(p.p) and is_cnf(p.q)
+    return False
+
+
 # ============================================================
 # 3) Tseitin: NNF -> CNF
 # ============================================================
@@ -592,7 +630,13 @@ def run_pipeline(formula: Prop) -> None:
     nnf_f = to_nnf(formula)
     print("NNF           :", show(nnf_f))
 
+    # if is_cnf(nnf_f) == True:
+    #     cnf = nnf_f
+    #     ineq_map = {}
+    # else:
+
     cnf, ineq_map = tseitin_cnf(formula)
+    
     print("CNF           :", show_cnf(cnf))
     
     # 절 단위 출력 추가
