@@ -52,19 +52,6 @@ def out_one_logit(s: str, eps_strict: float = 0.0) -> Prop:
     # "1" 클래스: s > 0  (non-strict margin)  s >= eps
     return InequProp(frozenset([(s, 1.0)]), 0.0 + eps_strict)
 
-# x에 0.5가 들어오면 1.0으로 snap하는 제약 (반례 공식에서 사용)
-def eq_var_const(x_var: str, c: float):
-    """
-    x_var == c 를 eq_lin으로 표현
-    eq_lin은 (terms_dict, b)를 받는다고 가정:
-      eq_lin({x_var: 1.0}, c)
-    """
-    return eq_lin({x_var: 1.0}, float(c))
-
-def snap_half_to_one_prop(x_var):
-    """(x == 0.5) => (x == 1.0)
-       ( x == 0.5) => ( One(x) true )"""
-    return ImplProp(eq_var_const(x_var, 0.5), eq_var_const(x_var, 1.0))
 
 # 범용 case 생성 함수: cls_x1, cls_x2, cls_y는 zero/one 같은 클래스 제약 생성 함수
 def cex_case(x1: str, x2: str,
@@ -72,8 +59,8 @@ def cex_case(x1: str, x2: str,
              eps_strict: float = 0.0,
              gen: FreshGen | None = None) -> Prop:
     """
-    Returns counterexample formula: PRE ∧ ¬POST
-      PRE  = cls_x1(x1) ∧ cls_x2(x2) ∧ NN(x1,x2) ^ ( x =0.5 => x = 1)->y constraints
+    Returns counterexample formula: PRE ∧ NN ∧ ¬POST
+      PRE  = cls_x1(x1) ∧ cls_x2(x2) ∧ NN(x1,x2)->y constraints
       POST = cls_out_logit(s) where s is the logit output of the NN
     """
     NNprop, s, _ = NN_single((x1, x2),gen=gen)
@@ -223,8 +210,19 @@ if __name__ == "__main__":
     
     # strict margin: logit을 쓰는 버전이면 1e-6 권장, 지금 y-interval 버전은 0.0~1e-6 중 선택
     # 0.0000001
+    # 소수 7자리까진 정확
+    # 이후부터는 정확도 문제로 반례 존재 
     # 0.000000000000001
-    eps = 0.00000001
+
+    # 현재 문제점 - eps_strict=0 일 때 x가 0.5에서 구분 못하는 문제 (반례 존재)
+    # eps = 0 일 때 입력 x가 0.5에서 구분 못함
+    # zero(x) = (0 <= x) and (x <= 0.5)
+    # one(x) = (0.5 <= x) and (x <= 1)
+    # x가 0.5일 때 zero도 one도 만족 -> NN이 0.5에서 구분 못하는 경우가 생김 -> 반례 존재
+
+    # 생각한 해결책 : |s| < 특정 eps 이면 unkwon으로 간주해도 되는지
+
+    eps = 0
 
     # 4케이스 실패 OR 전체 반례 공식 생성
     phi = cex_xor_all_cases(x1="x1", x2="x2", eps_strict=eps)
