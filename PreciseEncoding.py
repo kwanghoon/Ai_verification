@@ -463,52 +463,50 @@ def nn_label_from_sx(sx: float) -> int:
     """Classify NN output by sign of logit: sx >= 0 -> 1 else 0."""
     return 1 if sx >= 0.0 else 0
 
-def check_xor_on_zero_zero_region(
-    eps: float,
+def check_xor_on_region(
+    r1: Tuple[float, float],
+    r2: Tuple[float, float],
+    expected_out: int,
     n_samples: int = 1000,
     seed: int = 0,
     max_print: int = 10,
 ) -> List[Tuple[float, float, int, int, float]]:
     """
-    Sample (x0,x1) uniformly from [eps, 0.5-eps]^2, compare:
-      expected XOR label (0 xor 0 = 0)  vs  NN label(sign(sx)).
+    Sample (x1,x2) uniformly from r1 x r2, compare:
+      expected XOR label (provided by expected_out)  vs  NN label(sign(sx)).
 
     Prints up to max_print mismatches and returns them:
-      (x0, x1, expected_y, nn_y, sx)
+      (x1, x2, expected_y, nn_y, sx)
     """
     random.seed(seed)
 
-    # x1, x2의 lo, hi를 받아와야 한다.
-    lo, hi = 0.0 , 0.5 - eps
-    if not (lo <= hi):
-        raise ValueError(f"Invalid eps={eps}: interval [{lo},{hi}] is empty.")
+    lo1, hi1 = r1
+    lo2, hi2 = r2
+    if not (lo1 <= hi1) or not (lo2 <= hi2):
+        raise ValueError(f"Invalid region: [{lo1},{hi1}] x [{lo2},{hi2}]")
 
     mismatches: List[Tuple[float, float, int, int, float]] = []
-      # since both inputs are in "zero" region
 
     for _ in range(n_samples):
-        x0 = random.uniform(lo, hi)
-        x1 = random.uniform(lo, hi)
+        x1 = random.uniform(lo1, hi1)
+        x2 = random.uniform(lo2, hi2)
 
-        expected_y = xor_nn(x0, x1)
-
-        sx = xor_nn_sx(x0, x1)
+        expected_y = expected_out
+        sx = xor_nn_sx(x1, x2)
         nn_y = nn_label_from_sx(sx)
 
         if nn_y != expected_y:
-            mismatches.append((x0, x1, expected_y, nn_y, sx))
+            mismatches.append((x1, x2, expected_y, nn_y, sx))
             if len(mismatches) <= max_print:
                 print(
-                    f"Mismatch: x0={x0:.18e}, x1={x1:.18e}, "
+                    f"Mismatch: x1={x1:.18e}, x2={x2:.18e}, "
                     f"expected_y={expected_y}, nn_y={nn_y}, sx={sx:+.18e}"
                 )
             if len(mismatches) >= max_print:
-                # stop early once we've printed max_print mismatches
-                # (you can remove this break if you want to continue collecting)
                 break
 
     if not mismatches:
-        print(f"No mismatches in {n_samples} samples for region [eps, 0.5-eps]^2 with eps={eps}.")
+        print(f"No mismatches in {n_samples} samples for region [{lo1},{hi1}] x [{lo2},{hi2}].")
     else:
         print(f"Found {len(mismatches)} mismatches (printed up to {max_print}).")
 
@@ -519,34 +517,77 @@ def check_xor_on_zero_zero_region(
 # -------------------------
 if __name__ == "__main__":
 
-    # 4가지 케이스 모두에서 반례가 존재하는지 검증하는 공식
-    # phi = cex_xor_all_cases(x1="x1", x2="x2")
+    eps = 0.1  # 기존 상단에서도 정의되어 있을 수 있습니다
+    
+    x1 = "x1"
+    x2 = "x2"
 
-    # 1가지 케이스만 확인 case 00
-    fg = FreshGen(prefix="x00_")
-    phi = cex_case("x1", "x2", zero, zero, out_zero_logit, gen=fg)
-    print("==== XOR CEX query ====")
+    ranges = [
+        (0.0, 0.5 - eps),   # 구간1: [0, 0.5 - eps]
+        (0.5 + eps, 1.0)    # 구간2: [0.5 + eps, 1]
+    ]
+    cases = [
+        (0, 0, zero, zero, out_zero_logit),   # x1 ∈ 구간1, x2 ∈ 구간1, XOR output=0
+        (0, 1, zero, one,  out_one_logit),    # x1 ∈ 구간1, x2 ∈ 구간2, XOR output=1
+        (1, 0, one,  zero, out_one_logit),    # x1 ∈ 구간2, x2 ∈ 구간1, XOR output=1
+        (1, 1, one,  one,  out_zero_logit),   # x1 ∈ 구간2, x2 ∈ 구간2, XOR output=0
+    ]
 
-    # print("formula =", phi)
+    for i, (r1_idx, r2_idx, x1cls, x2cls, outcls) in enumerate(cases):
+        r1 = ranges[r1_idx]
+        r2 = ranges[r2_idx]
 
-    dpllModel, sat = dpll_t(phi)
-    print_cex(
-        sat, dpllModel,
-        input_class_fns=(("zero", zero), ("one", one)),
-    )
-    # 현재 eps 값 출력
-    print("eps = ", eps)
-    if sat:
-        x1 = float(dpllModel.get("x1", 0.0))
-        x2 = float(dpllModel.get("x2", 0.0))
-        sx = xor_nn_sx(x1, x2)
-        print(f"\n  Evaluated sx for (x1, x2) = ({_fmt(x1)}, {_fmt(x2)}): sx = {_fmt(sx)}  (raw={sx:+.18e})")
-    else:
-        print("x0, x1 >= 0 and x0, x1 <= 0.5-eps ")
-        # 1만개 를 해당 범위내에서 샘플링 후 xor_nn_sx 계산해서 
-        # xor 동작을 검증한 다음에 xor 동작과 다르면 x1, x2, xor(x1,x2) 결과를 출력해줘
-        # 최대 10개까지만 출력해줘
-        check_xor_on_zero_zero_region(eps=eps, n_samples=10000, seed=0, max_print=10)
+        def x1_range_prop(i): 
+            return AndProp(
+                InequProp(frozenset([(i, 1.0)]), r1[0]),   # x1 >= lower bound
+                InequProp(frozenset([(i, -1.0)]), -r1[1])  # x1 <= upper bound
+            )
+
+        def x2_range_prop(i): 
+            return AndProp(
+                InequProp(frozenset([(i, 1.0)]), r2[0]),   # x2 >= lower bound
+                InequProp(frozenset([(i, -1.0)]), -r2[1])  # x2 <= upper bound
+            )
+
+        fg = FreshGen(prefix=f"x{r1_idx}{r2_idx}_")
+        NNprop, s, _ = NN_single((x1, x2), gen=fg)
+
+        pre = AND(
+            x1cls(x1),
+            x2cls(x2),
+            x1_range_prop(x1),
+            x2_range_prop(x2),
+            NNprop
+        )
+        post = outcls(s)
+        phi = AND(pre, NotProp(post))
+
+        print(f"\n==== XOR CEX query for x1 in [{r1[0]}, {r1[1]}], x2 in [{r2[0]}, {r2[1]}] ====")
+
+        dpllModel, sat = dpll_t(phi)
+        print_cex(
+            sat, dpllModel,
+            input_class_fns=(("zero", zero), ("one", one)),
+        )
+        print("eps = ", eps)
+        if sat:
+            x1v = float(dpllModel.get("x1", 0.0))
+            x2v = float(dpllModel.get("x2", 0.0))
+            sx = xor_nn_sx(x1v, x2v)
+            print(f"\n  Evaluated sx for (x1, x2) = ({_fmt(x1v)}, {_fmt(x2v)}): sx = {_fmt(sx)}  (raw={sx:+.18e})")
+        else:
+            print(f"x1 in [{r1[0]}, {r1[1]}], x2 in [{r2[0]}, {r2[1]}] -- UNSAT")
+            # 1만개 를 해당 범위내에서 샘플링 후 xor_nn_sx 계산해서 
+            # xor 동작을 검증한 다음에 xor 동작과 다르면 x1, x2, xor(x1,x2) 결과를 출력해줘
+            # 최대 10개까지만 출력해줘
+            # check_xor_on_region이용
+            print("\n[검산] NN이 각 region에서 실제로 xor 동작을 하는지 1만개 샘플링 검증:")
+            mismatches = check_xor_on_region(
+                r1, r2,
+                expected_out=0 if outcls is out_zero_logit else 1,
+                n_samples=10000,
+                max_print=10
+            )
 
 
 # 제약에 해당 실제 반례 추가해서 debugging

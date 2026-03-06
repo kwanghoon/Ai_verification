@@ -36,6 +36,7 @@ def ge_lin(terms: Dict[str, float], b: float) -> Prop:
 def eq_lin(terms: Dict[str, float], b: float) -> Prop:
     # sum(terms[var]*var) == b
     # <=> sum(...) >= b  AND  -sum(...) >= -b
+    # <=> sum(...) >= b  AND  sum(...) <= b
     p1 = ge_lin(terms, b)
     neg_terms = {v: -c for v, c in terms.items()}
     p2 = ge_lin(neg_terms, -b)
