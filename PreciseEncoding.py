@@ -524,8 +524,9 @@ if __name__ == "__main__":
     x1 = "x1"
     x2 = "x2"
 
-    VISUALIZE_PHI_EACH_ATTEMPT = True
-    VISUALIZE_RENDER_PNG = True
+    # visualize_precise_prop 폴더에 이미지 파일 만들기
+    VISUALIZE_PHI_EACH_ATTEMPT = False
+    VISUALIZE_RENDER_PNG = False
 
     ranges = [
         (0.0, 0.5 - eps),   # 구간1: [0, 0.5 - eps]
